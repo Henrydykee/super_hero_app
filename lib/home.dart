@@ -16,7 +16,7 @@ class Home extends StatefulWidget {
 
 class _HomeState extends State<Home> {
   HeroViewModel _heroViewModel;
-  List responseList;
+  ValueNotifier<String> _searchQueryNotifier;
 
   @override
   void initState() {
@@ -25,6 +25,7 @@ class _HomeState extends State<Home> {
     WidgetsBinding.instance.addPostFrameCallback((timeStamp) {
       _heroViewModel.getHeroes();
     });
+    _searchQueryNotifier = ValueNotifier<String>('');
   }
 
   @override
@@ -34,16 +35,10 @@ class _HomeState extends State<Home> {
         appBar: AppBar(
           backgroundColor: Colors.black,
           centerTitle: true,
-          title: Text("HEROES",style: TextStyle(
-            fontSize: 15,
-            fontWeight: FontWeight.bold
-          ),),
-          actions: [
-            Padding(
-              padding: const EdgeInsets.only(right: 25),
-              child: Icon(Icons.search),
-            )
-          ],
+          title: Text(
+            "HEROES",
+            style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+          ),
         ),
         body: Consumer<HeroViewModel>(
           builder: (context, viewModel, child) {
@@ -60,73 +55,134 @@ class _HomeState extends State<Home> {
                 ),
               );
             }
-            return ListView.builder(
-                itemCount: viewModel.getHeoresList()?.length,
-                itemBuilder: (context, index) {
-                  return Padding(
-                    padding:
-                        const EdgeInsets.only(left: 25, right: 25, top: 10),
-                    child: GestureDetector(
-                      onTap: (){
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (context) => HeroDetails(
-                            heroItem: viewModel.getHeoresList()[index],
-                          )),
-                        );
-                      },
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Container(
-                            height: 150,
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(13),
-                            ),
-                            child: Hero(
-                              tag: viewModel.getHeoresList()[index].images.lg,
-                              child: ClipRRect(
-                                borderRadius:
-                                    BorderRadius.all(Radius.circular(13.0)),
-                                child: CachedNetworkImage(
-                                  imageUrl:
-                                      viewModel.getHeoresList()[index].images.md,
-                                  fit: BoxFit.cover,
-                                  width: MediaQuery.of(context).size.width,
-                                ),
-                              ),
-                            ),
-                          ),
-                          Padding(
-                            padding:
-                                const EdgeInsets.only(left: 7, top: 5, bottom: 1),
-                            child: Hero(
-                              tag: viewModel.getHeoresList()[index].name,
-                              child: Text(
-                                "${viewModel.getHeoresList()[index].name}",
-                                style: TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.bold),
-                              ),
-                            ),
-                          ),
-                          Padding(
-                            padding: const EdgeInsets.only(
-                                bottom: 15, left: 7, top: 3),
-                            child: Text(
-                              "${viewModel.getHeoresList()[index].biography.fullName}",
-                              style: TextStyle(
-                                color: Colors.white.withOpacity(0.5),
-                              ),
-                            ),
-                          )
-                        ],
+            return ValueListenableBuilder(
+              valueListenable: _searchQueryNotifier,
+              builder: (context, _query, _){
+                List<HeroItem> heros = _getHeroesByQuery(
+                  viewModel.getHeoresList(),
+                  searchQuery: _query,
+                );
+                return  Padding(
+                  padding: const EdgeInsets.only(left: 25,right: 25,),
+                  child: Column(
+                    children: [
+                      SearchBar(
+                        title: "Heroes",
+                        onQueryChanged: (String query){_searchQueryNotifier.value = query;
+                        },
                       ),
-                    ),
-                  );
-                });
+                      SizedBox(height: 15,),
+                      Expanded(
+                        child: ListView.builder(
+                            itemCount: heros.length,
+                            itemBuilder: (context, index) {
+                              return GestureDetector(
+                                onTap: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                        builder: (context) => HeroDetails(
+                                          heroItem: heros[index],
+                                        )),
+                                  );
+                                },
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Container(
+                                      height: 150,
+                                      decoration: BoxDecoration(
+                                        color: Colors.white,
+                                        borderRadius: BorderRadius.circular(13),
+                                      ),
+                                      child: Hero(
+                                        tag: viewModel.getHeoresList()[index].images.lg,
+                                        child: ClipRRect(
+                                          borderRadius:
+                                          BorderRadius.all(Radius.circular(13.0)),
+                                          child: CachedNetworkImage(
+                                            imageUrl: heros[index].images.md,
+                                            fit: BoxFit.cover,
+                                            width: MediaQuery.of(context).size.width,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                    Padding(
+                                      padding: const EdgeInsets.only(
+                                          left: 7, top: 5, bottom: 1),
+                                      child: Hero(
+                                        tag: viewModel.getHeoresList()[index].name,
+                                        child: Text(
+                                          "${heros[index].name}",
+                                          style: TextStyle(
+                                              color: Colors.white,
+                                              fontWeight: FontWeight.bold),
+                                        ),
+                                      ),
+                                    ),
+                                    Padding(
+                                      padding: const EdgeInsets.only(
+                                          bottom: 15, left: 7, top: 3),
+                                      child: Text(
+                                        "${heros[index].biography.fullName}",
+                                        style: TextStyle(
+                                          color: Colors.white.withOpacity(0.5),
+                                        ),
+                                      ),
+                                    )
+                                  ],
+                                ),
+                              );
+                            }),
+                      )
+                    ],
+                  ),
+                );
+              },
+            );
           },
         ));
+  }
+
+  List<HeroItem> _getHeroesByQuery(List<HeroItem> heoresList, {searchQuery}) {
+    if (searchQuery == null || searchQuery.isEmpty){
+      return heoresList;
+    }
+    searchQuery = searchQuery.toLowerCase();
+    return heoresList.where((hero){
+      return hero.name.toLowerCase().contains(searchQuery) || hero.biography.fullName.toLowerCase().contains(searchQuery);
+    }).toList();
+  }
+}
+
+class SearchBar extends StatelessWidget {
+  final String title;
+  final Function(String) onQueryChanged;
+
+  SearchBar({this.title, this.onQueryChanged});
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(25),
+          border: Border.all(color: Colors.white)),
+      child: TextField(
+        cursorColor: Colors.black,
+        onChanged: onQueryChanged,
+        decoration: InputDecoration(
+          icon: Padding(
+            padding: const EdgeInsets.only(left: 10,),
+            child: Icon(Icons.search, color: Colors.black,)
+          ),
+          hintText: 'Search $title',
+          hintStyle: TextStyle(
+              color: Colors.white
+          ),
+          border: InputBorder.none,
+        ),
+      ),
+    );
   }
 }
